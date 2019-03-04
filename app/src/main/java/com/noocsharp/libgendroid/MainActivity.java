@@ -4,7 +4,9 @@ import android.os.AsyncTask;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
+import android.widget.ArrayAdapter;
 import android.widget.EditText;
+import android.widget.ListView;
 
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
@@ -12,20 +14,39 @@ import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 
 import java.io.IOException;
+import java.lang.reflect.Array;
 import java.util.ArrayList;
+import java.util.concurrent.ExecutionException;
 
 public class MainActivity extends AppCompatActivity {
     private static final String TAG = "MainActivity";
 
     //EditText edittext = findViewById(R.id.editText);
+    ListView bookList;
     ArrayList<BookEntry> entries;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        bookList = findViewById(R.id.bookList);
 
-        new HandleSearchTask().execute("devil");
+        try {
+            entries = new HandleSearchTask().execute("devil").get();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        } catch (ExecutionException e) {
+            e.printStackTrace();
+        }
+
+        if (entries != null) {
+            for (BookEntry e : entries) {
+                Log.i(TAG, e.toString());
+            }
+            ArrayAdapter<BookEntry> adapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, entries);
+            bookList.setAdapter(adapter);
+
+        }
     }
 
     private class HandleSearchTask extends AsyncTask<String, Void, ArrayList<BookEntry>> {
@@ -83,11 +104,6 @@ public class MainActivity extends AppCompatActivity {
                 return Integer.parseInt(pages.substring(0, pages.indexOf(' ')));
             else
                 return Integer.parseInt(pages);
-        }
-
-        @Override
-        protected void onPostExecute(ArrayList<BookEntry> bookEntries) {
-
         }
     }
 }
