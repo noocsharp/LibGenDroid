@@ -57,7 +57,7 @@ public class BookAdapter extends ArrayAdapter<BookEntry> {
 
         title.setText(entry.getTitle());
         author.setText(entry.getAuthor());
-        pages.setText(String.valueOf(entry.getPages()));
+        pages.setText(entry.getPages() != -1 ? String.valueOf(entry.getPages()) + " pages" : "");
 
         return view;
     }
