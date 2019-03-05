@@ -1,9 +1,15 @@
 package com.noocsharp.libgendroid;
 
+import android.app.Activity;
 import android.os.AsyncTask;
+import android.renderscript.ScriptGroup;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.KeyEvent;
+import android.view.View;
+import android.view.inputmethod.EditorInfo;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.ArrayAdapter;
 import android.widget.EditText;
 import android.widget.ListView;
@@ -21,7 +27,7 @@ import java.util.concurrent.ExecutionException;
 public class MainActivity extends AppCompatActivity {
     private static final String TAG = "MainActivity";
 
-    //EditText edittext = findViewById(R.id.editText);
+    EditText edittext;
     ListView bookList;
     ArrayList<BookEntry> entries;
 
@@ -29,24 +35,47 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+        entries = new ArrayList<>();
+
+        edittext = findViewById(R.id.editText);
         bookList = findViewById(R.id.bookList);
 
+        edittext.setOnKeyListener(new View.OnKeyListener() {
+            @Override
+            public boolean onKey(View view, int i, KeyEvent keyEvent) {
+                if ((keyEvent.getAction() == KeyEvent.ACTION_DOWN) && (i == KeyEvent.KEYCODE_ENTER)) {
+                    hideKeyboard();
+                    doSearchTask(((EditText) view).getText().toString());
+                }
+                return false;
+            }
+        });
+    }
+
+    private void doSearchTask(String term) {
         try {
-            entries = new HandleSearchTask().execute("devil").get();
+            entries = new HandleSearchTask().execute(term).get();
         } catch (InterruptedException e) {
+            entries = new ArrayList<>();
             e.printStackTrace();
         } catch (ExecutionException e) {
+            entries = new ArrayList<>();
             e.printStackTrace();
         }
+        ArrayAdapter<BookEntry> adapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, entries);
+        bookList.setAdapter(adapter);
+    }
 
-        if (entries != null) {
-            for (BookEntry e : entries) {
-                Log.i(TAG, e.toString());
-            }
-            ArrayAdapter<BookEntry> adapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, entries);
-            bookList.setAdapter(adapter);
+    private void hideKeyboard() {
+        InputMethodManager imm = (InputMethodManager) this.getSystemService(Activity.INPUT_METHOD_SERVICE);
 
+        View view = this.getCurrentFocus();
+
+        if (view == null) {
+            view = new View(this);
         }
+        imm.hideSoftInputFromWindow(view.getWindowToken(), 0);
     }
 
     private class HandleSearchTask extends AsyncTask<String, Void, ArrayList<BookEntry>> {
@@ -73,7 +102,7 @@ public class MainActivity extends AppCompatActivity {
                     entry.setAuthor(elements.get(1).text());
                     entry.setTitle(parseTitle(elements.get(2).children().last().html()));
                     entry.setPublisher(elements.get(3).text());
-                    entry.setYear(Integer.parseInt(elements.get(4).text()));
+                    entry.setYear(parseYear(elements.get(4).text()));
                     entry.setPages(parsePages(elements.get(5).text()));
                     entry.setLanguage(elements.get(6).text());
                     entry.setSize(elements.get(7).text());
@@ -100,10 +129,22 @@ public class MainActivity extends AppCompatActivity {
         }
 
         private int parsePages(String pages) {
-            if (pages.indexOf(' ') != -1)
+            Log.i(TAG, "parsePages: " + pages);
+            if (pages.equals(""))
+                return -1;
+            else if (pages.indexOf(' ') != -1)
                 return Integer.parseInt(pages.substring(0, pages.indexOf(' ')));
             else
                 return Integer.parseInt(pages);
+        }
+
+        private int parseYear(String year) {
+            try {
+                return Integer.parseInt(year);
+            } catch (Exception e) {
+
+                return -1;
+            }
         }
     }
 }
