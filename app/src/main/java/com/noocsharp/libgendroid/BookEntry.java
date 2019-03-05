@@ -1,8 +1,23 @@
 package com.noocsharp.libgendroid;
 
+import java.util.ArrayList;
+
 public class BookEntry {
-    String author, title, publisher, language, extension, size;
-    int id, pages, year;
+    private String author, title, publisher, language, extension, size;
+    private ArrayList<String> mirrors;
+    private int id, pages, year;
+
+    BookEntry() {
+        mirrors = new ArrayList<>();
+    }
+
+    public void addMirror(String mirror) {
+        mirrors.add(mirror);
+    }
+
+    public ArrayList<String> getMirrors() {
+        return mirrors;
+    }
 
     public int getYear() {
         return year;

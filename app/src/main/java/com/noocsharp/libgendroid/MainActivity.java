@@ -108,9 +108,11 @@ public class MainActivity extends AppCompatActivity {
                     entry.setSize(elements.get(7).text());
                     entry.setExtension(elements.get(8).text());
 
-                    Log.i(TAG, "ROW");
-                    Log.i(TAG, entry.toString());
-                    Log.i(TAG, row.html());
+                    entry.addMirror(elements.get(9).children().first().attributes().get("href"));
+                    entry.addMirror(elements.get(10).children().first().attributes().get("href"));
+                    entry.addMirror(elements.get(11).children().first().attributes().get("href"));
+                    entry.addMirror(elements.get(12).children().first().attributes().get("href"));
+                    entry.addMirror(elements.get(13).children().first().attributes().get("href"));
 
                     bookList.add(entry);
                 }
