@@ -63,7 +63,7 @@ public class MainActivity extends AppCompatActivity {
             entries = new ArrayList<>();
             e.printStackTrace();
         }
-        ArrayAdapter<BookEntry> adapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, entries);
+        BookAdapter adapter = new BookAdapter(this, entries);
         bookList.setAdapter(adapter);
     }
 
