@@ -1,8 +1,14 @@
 package com.noocsharp.libgendroid;
 
+import android.Manifest;
 import android.app.Activity;
+import android.content.Context;
+import android.content.pm.PackageManager;
 import android.os.AsyncTask;
+import android.os.Environment;
 import android.renderscript.ScriptGroup;
+import android.support.v4.app.ActivityCompat;
+import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
@@ -11,26 +17,41 @@ import android.view.View;
 import android.view.WindowManager;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
+import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.EditText;
 import android.widget.ListView;
 
 import org.jsoup.Jsoup;
+import org.jsoup.helper.HttpConnection;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
 import java.lang.reflect.Array;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.concurrent.ExecutionException;
 
 public class MainActivity extends AppCompatActivity {
     private static final String TAG = "MainActivity";
 
+    private static final int READ_STORAGE_REQUEST = 100;
+
     EditText edittext;
     ListView bookList;
     ArrayList<BookEntry> entries;
+    BookAdapter adapter;
+    String currentMirror;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -53,7 +74,41 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
+        bookList.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+            @Override
+            public void onItemClick(AdapterView<?> adapterView, View view, int i, long l) {
+                BookEntry entry = adapter.getItem(i);
+                currentMirror = entry.getMirrors().get(0);
+
+                if (ContextCompat.checkSelfPermission(getApplicationContext(), Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                    ActivityCompat.requestPermissions(MainActivity.this, new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, READ_STORAGE_REQUEST);
+                } else {
+                    doDownloadTask();
+                }
+            }
+        });
+
         getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_PAN);
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String permissions[], int[] grantResults) {
+        switch (requestCode) {
+            case READ_STORAGE_REQUEST: {
+                if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED)
+                    doDownloadTask();
+            }
+        }
+    }
+
+    private void doDownloadTask() {
+        try {
+            boolean result = new HandleDownloadTask().execute(currentMirror).get();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        } catch (ExecutionException e) {
+            e.printStackTrace();
+        }
     }
 
     private void doSearchTask(String term) {
@@ -66,7 +121,7 @@ public class MainActivity extends AppCompatActivity {
             entries = new ArrayList<>();
             e.printStackTrace();
         }
-        BookAdapter adapter = new BookAdapter(this, entries);
+        adapter = new BookAdapter(this, entries);
         bookList.setAdapter(adapter);
     }
 
@@ -137,8 +192,8 @@ public class MainActivity extends AppCompatActivity {
             Log.i(TAG, "parsePages: " + pages);
             if (pages.equals(""))
                 return -1;
-            else if (pages.indexOf(' ') != -1)
-                return Integer.parseInt(pages.substring(0, pages.indexOf(' ')));
+            else if (pages.indexOf('[') != -1)
+                return Integer.parseInt(pages.substring(pages.indexOf('[') + 1, pages.indexOf(']')));
             else
                 return Integer.parseInt(pages);
         }
@@ -150,6 +205,68 @@ public class MainActivity extends AppCompatActivity {
 
                 return -1;
             }
+        }
+    }
+
+    private class HandleDownloadTask extends AsyncTask<String, Void, Boolean> {
+
+        @Override
+        protected Boolean doInBackground(String... strings) {
+
+            InputStream input = null;
+            FileOutputStream output = null;
+            HttpURLConnection connection = null;
+            try {
+                Document download = Jsoup.connect(strings[0]).get();
+                Element head = download.getElementsByTag("tr").first();
+                String fileURL = head.child(1).child(0).child(0).attributes().get("href");
+                String fileName = URLDecoder.decode(fileURL.substring(fileURL.lastIndexOf('/')+1), StandardCharsets.UTF_8.name());
+
+                URL url = new URL(fileURL);
+                connection = (HttpURLConnection) url.openConnection();
+                connection.connect();
+
+                Log.i(TAG, "Connected to " + fileURL);
+
+                if (connection.getResponseCode() != HttpURLConnection.HTTP_OK) {
+                    return null;
+                }
+
+                int fileLength = connection.getContentLength();
+
+                input = connection.getInputStream();
+
+                File outputFile = new File(Environment.getExternalStorageDirectory() + "/Download/" + fileName);
+                outputFile.createNewFile();
+                output = new FileOutputStream(outputFile);
+                Log.i(TAG, "Path: " + Environment.getExternalStorageDirectory() + "/Download/" + fileName);
+
+                byte[] data = new byte[4096];
+                long bytesReceived = 0;
+                int count;
+                while ((count = input.read(data)) != -1) {
+                    output.write(data, 0, count);
+                    bytesReceived += count;
+                    Log.i(TAG, "Transfered " + bytesReceived + "bytes");
+                }
+
+            } catch (IOException e) {
+                e.printStackTrace();
+            } finally {
+                    try {
+                        if (output != null)
+                            output.close();
+                        if (input != null)
+                            input.close();
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                    if (connection != null) connection.disconnect();
+
+            }
+
+            Log.i(TAG, "Completed successfully");
+            return true;
         }
     }
 }
