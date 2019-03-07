@@ -1,0 +1,3 @@
+# LibGenDroid
+
+Simple LibGen client.
