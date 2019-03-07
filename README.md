@@ -1,3 +1,3 @@
 # LibGenDroid
 
-Simple LibGen client.
+Simple LibGen client for Android.
