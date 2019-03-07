@@ -182,10 +182,13 @@ public class MainActivity extends AppCompatActivity {
         }
 
         private String parseTitle(String title) {
+            String newTitle;
             if (title.indexOf('<') != -1)
-                return title.substring(0, title.indexOf('<'));
+                newTitle = title.substring(0, title.indexOf('<'));
             else
-                return title;
+                newTitle = title;
+
+            return newTitle.replace("&amp;", "&");
         }
 
         private int parsePages(String pages) {
@@ -194,6 +197,8 @@ public class MainActivity extends AppCompatActivity {
                 return -1;
             else if (pages.indexOf('[') != -1)
                 return Integer.parseInt(pages.substring(pages.indexOf('[') + 1, pages.indexOf(']')));
+            else if (pages.indexOf(' ') != -1)
+                return Integer.parseInt(pages.substring(0, pages.indexOf(' ')));
             else
                 return Integer.parseInt(pages);
         }
@@ -206,6 +211,7 @@ public class MainActivity extends AppCompatActivity {
                 return -1;
             }
         }
+
     }
 
     private class HandleDownloadTask extends AsyncTask<String, Void, Boolean> {
