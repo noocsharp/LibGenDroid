@@ -21,6 +21,7 @@ import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.EditText;
 import android.widget.ListView;
+import android.widget.Toast;
 
 import org.jsoup.Jsoup;
 import org.jsoup.helper.HttpConnection;
@@ -42,7 +43,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.concurrent.ExecutionException;
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends AppCompatActivity implements AsyncCallback {
     private static final String TAG = "MainActivity";
 
     private static final int READ_STORAGE_REQUEST = 100;
@@ -102,27 +103,11 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void doDownloadTask() {
-        try {
-            boolean result = new HandleDownloadTask().execute(currentMirror).get();
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        } catch (ExecutionException e) {
-            e.printStackTrace();
-        }
+        new HandleDownloadTask(this).execute(currentMirror);
     }
 
     private void doSearchTask(String term) {
-        try {
-            entries = new HandleSearchTask().execute(term).get();
-        } catch (InterruptedException e) {
-            entries = new ArrayList<>();
-            e.printStackTrace();
-        } catch (ExecutionException e) {
-            entries = new ArrayList<>();
-            e.printStackTrace();
-        }
-        adapter = new BookAdapter(this, entries);
-        bookList.setAdapter(adapter);
+        new HandleSearchTask(this).execute(term);
     }
 
     private void hideKeyboard() {
@@ -136,9 +121,27 @@ public class MainActivity extends AppCompatActivity {
         imm.hideSoftInputFromWindow(view.getWindowToken(), 0);
     }
 
-    private class HandleSearchTask extends AsyncTask<String, Void, ArrayList<BookEntry>> {
+    public void onDownloadComplete(String filename, boolean failed) {
+        if (!failed)
+            Toast.makeText(this, "Finished downloading " + filename + ".", Toast.LENGTH_LONG).show();
+        else
+            Toast.makeText(this, "Failed to download " + filename + ".", Toast.LENGTH_LONG).show();
+    }
+
+    public void onSearchComplete(ArrayList<BookEntry> entries) {
+        adapter = new BookAdapter(this, entries);
+        bookList.setAdapter(adapter);
+    }
+
+    private class HandleSearchTask extends AsyncTask<String, Void, Void> {
+        private AsyncCallback delegate;
+
+        public HandleSearchTask(AsyncCallback delegate) {
+            this.delegate = delegate;
+        }
+
         @Override
-        protected ArrayList<BookEntry> doInBackground(String... strings) {
+        protected Void doInBackground(String... strings) {
             ArrayList<BookEntry> bookList = new ArrayList<>();
 
             if (strings.length <= 0) return null;
@@ -178,7 +181,14 @@ public class MainActivity extends AppCompatActivity {
             } catch (IOException e) {
                 e.printStackTrace();
             }
-            return bookList;
+            final ArrayList<BookEntry> rBookList = bookList;
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    delegate.onSearchComplete(rBookList);
+                }
+            });
+            return null;
         }
 
         private String parseTitle(String title) {
@@ -215,6 +225,11 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private class HandleDownloadTask extends AsyncTask<String, Void, Boolean> {
+        private AsyncCallback delegate;
+
+        public HandleDownloadTask(AsyncCallback delegate) {
+            this.delegate = delegate;
+        }
 
         @Override
         protected Boolean doInBackground(String... strings) {
@@ -222,11 +237,13 @@ public class MainActivity extends AppCompatActivity {
             InputStream input = null;
             FileOutputStream output = null;
             HttpURLConnection connection = null;
+            String fileName = "";
+            boolean failed = false;
             try {
                 Document download = Jsoup.connect(strings[0]).get();
                 Element head = download.getElementsByTag("tr").first();
                 String fileURL = head.child(1).child(0).child(0).attributes().get("href");
-                String fileName = URLDecoder.decode(fileURL.substring(fileURL.lastIndexOf('/')+1), StandardCharsets.UTF_8.name());
+                fileName = URLDecoder.decode(fileURL.substring(fileURL.lastIndexOf('/')+1), StandardCharsets.UTF_8.name());
 
                 URL url = new URL(fileURL);
                 connection = (HttpURLConnection) url.openConnection();
@@ -258,6 +275,7 @@ public class MainActivity extends AppCompatActivity {
 
             } catch (IOException e) {
                 e.printStackTrace();
+                failed = true;
             } finally {
                     try {
                         if (output != null)
@@ -268,11 +286,22 @@ public class MainActivity extends AppCompatActivity {
                         e.printStackTrace();
                     }
                     if (connection != null) connection.disconnect();
-
+            }
+            if (failed) {
+                Log.i(TAG, "Download of " + fileName + " failed.");
             }
 
             Log.i(TAG, "Completed successfully");
-            return true;
+
+            final String rFilename = fileName;
+            final boolean rFailed = failed;
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    delegate.onDownloadComplete(rFilename, rFailed);
+                }
+            });
+            return failed;
         }
     }
 }
